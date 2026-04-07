@@ -33,7 +33,8 @@ class SimulatorApp:
         self.simulator = simulator
         self.root = tk.Tk()
         self.root.title("Block Storage Simulator")
-        self.root.geometry("920x700")
+        self.root.geometry("980x720")
+        self.root.minsize(760, 520)
 
         self.status_text = tk.StringVar()
 
@@ -42,51 +43,74 @@ class SimulatorApp:
         self.root.after(self.REFRESH_MS, self._poll_refresh)
 
     def _build_layout(self) -> None:
-        container = ttk.Frame(self.root, padding=16)
-        container.pack(fill=tk.BOTH, expand=True)
+        viewport = ttk.Frame(self.root)
+        viewport.pack(fill=tk.BOTH, expand=True)
+        viewport.columnconfigure(0, weight=1)
+        viewport.rowconfigure(0, weight=1)
 
-        ttk.Label(container, text="Block Storage Simulator", font=("Segoe UI", 16, "bold")).pack(anchor=tk.W, pady=(0, 12))
+        self.outer_canvas = tk.Canvas(viewport, highlightthickness=0)
+        outer_y_scroll = ttk.Scrollbar(viewport, orient=tk.VERTICAL, command=self.outer_canvas.yview)
+        outer_x_scroll = ttk.Scrollbar(viewport, orient=tk.HORIZONTAL, command=self.outer_canvas.xview)
+        self.outer_canvas.configure(yscrollcommand=outer_y_scroll.set, xscrollcommand=outer_x_scroll.set)
 
-        top_row = ttk.Frame(container)
-        top_row.pack(fill=tk.X)
+        self.outer_canvas.grid(row=0, column=0, sticky="nsew")
+        outer_y_scroll.grid(row=0, column=1, sticky="ns")
+        outer_x_scroll.grid(row=1, column=0, sticky="ew")
 
-        left_column = ttk.Frame(top_row)
-        left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+        container = ttk.Frame(self.outer_canvas, padding=16)
+        self._outer_canvas_window = self.outer_canvas.create_window((0, 0), window=container, anchor="nw")
 
-        right_column = ttk.Frame(top_row)
-        right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
+        container.columnconfigure(0, weight=3)
+        container.columnconfigure(1, weight=2)
+        container.columnconfigure(2, weight=2)
+        container.rowconfigure(1, weight=1)
 
-        status_frame = ttk.LabelFrame(left_column, text="Status", padding=12)
-        status_frame.pack(fill=tk.BOTH, expand=True)
+        container.bind("<Configure>", self._on_container_configure)
+        self.outer_canvas.bind("<Configure>", self._on_outer_canvas_configure)
+
+        ttk.Label(container, text="Block Storage Simulator", font=("Segoe UI", 16, "bold")).grid(
+            row=0,
+            column=0,
+            columnspan=3,
+            sticky="w",
+            pady=(0, 12),
+        )
+
+        status_frame = ttk.LabelFrame(container, text="Status", padding=12)
+        status_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 8), pady=(0, 12))
         ttk.Label(status_frame, textvariable=self.status_text, justify=tk.LEFT).pack(anchor=tk.W)
 
-        notes_frame = ttk.LabelFrame(right_column, text="Notes", padding=12)
-        notes_frame.pack(fill=tk.BOTH, expand=True)
+        notes_frame = ttk.LabelFrame(container, text="Notes", padding=12)
+        notes_frame.grid(row=1, column=1, sticky="nsew", padx=8, pady=(0, 12))
         notes = (
             "- The GUI does not drive conveyor or lifter commands.\n"
             "- Reset returns the simulator to a fresh state.\n"
             "- Blocks can only be added to or removed from the pallet when it is at home."
         )
-        ttk.Label(notes_frame, text=notes, justify=tk.LEFT).pack(anchor=tk.W)
+        ttk.Label(notes_frame, text=notes, justify=tk.LEFT, wraplength=280).pack(anchor=tk.W)
 
-        middle_row = ttk.Frame(container)
-        middle_row.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
-
-        diagram_frame = ttk.LabelFrame(middle_row, text="Storage View", padding=12)
-        diagram_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
-        self.canvas = tk.Canvas(diagram_frame, width=760, height=620, bg="#fbfaf6", highlightthickness=0)
-        self.canvas.pack(fill=tk.BOTH, expand=True)
-
-        diagnostics_frame = ttk.LabelFrame(middle_row, text="Warnings And Alarms", padding=12)
-        diagnostics_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(6, 0))
-        self.diagnostics_list = tk.Listbox(diagnostics_frame, height=6, width=56)
+        diagnostics_frame = ttk.LabelFrame(container, text="Warnings And Alarms", padding=12)
+        diagnostics_frame.grid(row=1, column=2, sticky="nsew", padx=(8, 0), pady=(0, 12))
+        self.diagnostics_list = tk.Listbox(diagnostics_frame, height=10, width=44)
         diagnostics_scroll = ttk.Scrollbar(diagnostics_frame, orient=tk.VERTICAL, command=self.diagnostics_list.yview)
         self.diagnostics_list.configure(yscrollcommand=diagnostics_scroll.set)
         self.diagnostics_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         diagnostics_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
+        diagram_frame = ttk.LabelFrame(container, text="Storage View", padding=12)
+        diagram_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=(0, 8))
+        diagram_frame.columnconfigure(0, weight=1)
+        diagram_frame.rowconfigure(0, weight=1)
+        self.canvas = tk.Canvas(diagram_frame, width=640, height=500, bg="#fbfaf6", highlightthickness=0)
+        canvas_y_scroll = ttk.Scrollbar(diagram_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        canvas_x_scroll = ttk.Scrollbar(diagram_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        self.canvas.configure(yscrollcommand=canvas_y_scroll.set, xscrollcommand=canvas_x_scroll.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        canvas_y_scroll.grid(row=0, column=1, sticky="ns")
+        canvas_x_scroll.grid(row=1, column=0, sticky="ew")
+
         controls_frame = ttk.LabelFrame(container, text="Manual Tools", padding=12)
-        controls_frame.pack(fill=tk.X, pady=(12, 0))
+        controls_frame.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(12, 0))
         self.add_button = ttk.Button(controls_frame, text="Add Block To Home Pallet", command=self._add_home_pallet_block)
         self.add_button.pack(side=tk.LEFT, padx=(0, 8))
         self.remove_button = ttk.Button(
@@ -96,6 +120,12 @@ class SimulatorApp:
         )
         self.remove_button.pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(controls_frame, text="Reset", command=self._reset).pack(side=tk.LEFT)
+
+    def _on_container_configure(self, _event: tk.Event[tk.Misc]) -> None:
+        self.outer_canvas.configure(scrollregion=self.outer_canvas.bbox("all"))
+
+    def _on_outer_canvas_configure(self, event: tk.Event[tk.Misc]) -> None:
+        self.outer_canvas.itemconfigure(self._outer_canvas_window, width=event.width)
 
     def _reset(self) -> None:
         self.simulator.reset()
@@ -169,6 +199,12 @@ class SimulatorApp:
                     pallet_center.y + relative_position.y,
                 )
                 self._draw_block_stack(absolute_position, block_ids, pallet_relative=True, in_area=pallet_in_area, show_coords=pallet_in_area)
+        bbox = self.canvas.bbox("all")
+        if bbox is not None:
+            margin = 24
+            self.canvas.configure(
+                scrollregion=(bbox[0] - margin, bbox[1] - margin, bbox[2] + margin, bbox[3] + margin)
+            )
 
     def _draw_station(self, label: str, position: StackPosition, in_area: bool, show_coords: bool) -> None:
         x = self._canvas_x(position.x, in_area=in_area)
